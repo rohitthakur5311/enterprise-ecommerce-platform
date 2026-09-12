@@ -1,0 +1,159 @@
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE_MODULE: services.gateway.app
+    environment:
+      APP_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me}
+      REDIS_URL: redis://redis:6379/0
+      AUTH_SERVICE_URL: http://auth:8000
+      CATALOG_SERVICE_URL: http://catalog:8000
+      ORDERS_SERVICE_URL: http://orders:8000
+      RATE_LIMIT_PER_MINUTE: 100
+    ports:
+      - "8000:8000"
+    depends_on:
+      - auth
+      - catalog
+      - orders
+      - redis
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE_MODULE: services.auth.app
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me}
+      AUTH_DATABASE_URL: postgresql+asyncpg://app:app@auth-db:5432/auth
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  catalog:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE_MODULE: services.catalog.app
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me}
+      CATALOG_DATABASE_URL: postgresql+asyncpg://app:app@catalog-db:5432/catalog
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  orders:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE_MODULE: services.orders.app
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me}
+      ORDERS_DATABASE_URL: postgresql+asyncpg://app:app@orders-db:5432/orders
+      CATALOG_SERVICE_URL: http://catalog:8000
+    depends_on:
+      orders-db:
+        condition: service_healthy
+      catalog:
+        condition: service_started
+    restart: unless-stopped
+
+  auth-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: auth
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    volumes:
+      - auth_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  catalog-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    volumes:
+      - catalog_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  orders-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    volumes:
+      - orders_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d orders"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:1.27-alpine
+    volumes:
+      - ../frontend:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - gateway
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - gateway
+      - auth
+      - catalog
+      - orders
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  auth_db:
+  catalog_db:
+  orders_db:
+  redis_data:
+  grafana_data:

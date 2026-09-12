@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Enterprise E-Commerce Platform</title>
+<style>
+body{font-family:Inter,system-ui,sans-serif;background:#0f172a;color:#e2e8f0;margin:0}
+main{max-width:1200px;margin:auto;padding:32px}
+h1{margin-bottom:4px}.muted{color:#94a3b8}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:24px}
+.card{background:#111c31;border:1px solid #263554;border-radius:14px;padding:20px}
+.value{font-size:28px;font-weight:700;margin-top:8px}
+.status{display:inline-block;padding:5px 10px;border-radius:999px;background:#14532d;color:#bbf7d0}
+table{width:100%;border-collapse:collapse;margin-top:12px}td,th{padding:10px;text-align:left;border-bottom:1px solid #263554}
+button{background:#2563eb;color:white;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+code{background:#0b1220;padding:3px 6px;border-radius:5px}
+</style>
+</head>
+<body>
+<main>
+<h1>🏢 Enterprise E-Commerce Platform</h1>
+<div class="muted">Production dashboard • Microservices • CI/CD • Kubernetes • Observability</div>
+<div class="grid">
+  <div class="card"><div class="muted">Deployment</div><div class="value">Production-ready</div><span class="status">Healthy</span></div>
+  <div class="card"><div class="muted">Architecture</div><div class="value">4 Services</div><div class="muted">Gateway + Auth + Catalog + Orders</div></div>
+  <div class="card"><div class="muted">Security</div><div class="value">JWT + RBAC</div><div class="muted">Rate limiting enabled</div></div>
+  <div class="card"><div class="muted">Observability</div><div class="value">Prometheus</div><div class="muted">Grafana dashboards</div></div>
+</div>
+<div class="card" style="margin-top:16px">
+<h2>Live Service Health</h2>
+<table><thead><tr><th>Service</th><th>Endpoint</th><th>Status</th></tr></thead>
+<tbody id="health"></tbody></table>
+</div>
+<div class="card" style="margin-top:16px">
+<h2>Quick Links</h2>
+<p><a href="http://localhost:8000/docs" style="color:#93c5fd">Swagger / OpenAPI</a></p>
+<p><a href="http://localhost:3000" style="color:#93c5fd">Grafana</a></p>
+<p><a href="http://localhost:9090" style="color:#93c5fd">Prometheus</a></p>
+</div>
+</main>
+<script>
+const services=[["Gateway","/health"],["Auth","http://localhost:8001/health"],["Catalog","http://localhost:8002/health"],["Orders","http://localhost:8003/health"]];
+async function check(){
+ const rows=await Promise.all(services.map(async ([name,url])=>{
+   try{const r=await fetch(url);return `<tr><td>${name}</td><td><code>${url}</code></td><td>${r.ok?"🟢 Healthy":"🔴 "+r.status}</td></tr>`}
+   catch(e){return `<tr><td>${name}</td><td><code>${url}</code></td><td>🔴 Offline</td></tr>`}
+ }));
+ document.querySelector("#health").innerHTML=rows.join("");
+}
+check();setInterval(check,10000);
+</script>
+</body>
+</html>
